@@ -34,8 +34,21 @@ final class ConnectionKey
      */
     public function apiUrl(): string
     {
+        return $this->sibling('api');
+    }
+
+    /**
+     * webid's chat address: the issuer with "chat." in front of its host (https://chat.webid.am).
+     */
+    public function chatUrl(): string
+    {
+        return $this->sibling('chat');
+    }
+
+    private function sibling(string $name): string
+    {
         $parts = parse_url($this->issuer);
 
-        return ($parts['scheme'] ?? 'https').'://api.'.($parts['host'] ?? '').(isset($parts['port']) ? ':'.$parts['port'] : '');
+        return ($parts['scheme'] ?? 'https').'://'.$name.'.'.($parts['host'] ?? '').(isset($parts['port']) ? ':'.$parts['port'] : '');
     }
 }

@@ -8,7 +8,8 @@ use Illuminate\Support\Facades\Blade;
 use Illuminate\Support\ServiceProvider;
 
 /**
- * Sign in with webid: reads WEBID_KEY, adds the /webid routes and the <x-webid::button /> component.
+ * Sign in with webid: reads WEBID_KEY, adds the /webid routes and the <x-webid::button /> and <x-webid::chat />
+ * components.
  *
  * php artisan vendor:publish --tag=webid-config      config/webid.php
  * php artisan vendor:publish --tag=webid-migrations  the users.webid_sub column
@@ -23,6 +24,7 @@ class WebidServiceProvider extends ServiceProvider
             $app->make(Http::class),
             $app->make(Cache::class),
             config('webid.api_url'),
+            config('webid.chat_url'),
         ));
     }
 

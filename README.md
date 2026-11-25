@@ -16,10 +16,19 @@ Put the connection key that webid showed when you turned on "Sign in with webid"
 WEBID_KEY=wk_…
 ```
 
-Add the button anywhere:
+Add the button anywhere. It carries webid's mark and speaks the page language (hy, ru, en); its look is built in, so
+it needs no stylesheet (`theme="light"` for light backgrounds, `plain class="…"` to style it yourself):
 
 ```blade
-<x-webid::button>Մուտք webid-ով</x-webid::button>
+<x-webid::button />
+<x-webid::button return="/checkout" theme="light" />
+```
+
+With the Chat service on for the site, add the chat to the layout:
+
+```blade
+<x-webid::chat />                                {{-- a chat button for customers --}}
+<x-webid::chat mode="agent" target="#inbox" />   {{-- the seller's inbox inside #inbox --}}
 ```
 
 That is all. The package adds:
@@ -56,4 +65,5 @@ $place = app(Webid\Laravel\Webid::class)->place('am-er-kentron');
 ## Settings
 
 `php artisan vendor:publish --tag=webid-config` for `config/webid.php`: the user model and column, the route prefix,
-where users go after signing in, and `WEBID_API_URL` if webid's API is not at `api.` + webid's address.
+where users go after signing in, and `WEBID_API_URL` / `WEBID_CHAT_URL` if webid's API or chat are not at `api.` /
+`chat.` + webid's address.

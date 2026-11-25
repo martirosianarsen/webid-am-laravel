@@ -13,6 +13,11 @@ return [
     'api_url' => env('WEBID_API_URL'),
 
     /*
+     * webid's chat (the widget script). Defaults to webid's address with "chat." in front (https://chat.webid.am).
+     */
+    'chat_url' => env('WEBID_CHAT_URL'),
+
+    /*
      * Where the package listens. The callback must be one of the site's redirect addresses in webid; by default webid
      * registers the site's own address at /webid/callback.
      */

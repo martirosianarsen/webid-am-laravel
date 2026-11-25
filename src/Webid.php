@@ -23,7 +23,16 @@ class Webid
         private Http $http,
         private Cache $cache,
         private ?string $apiUrl = null,
+        private ?string $chatUrl = null,
     ) {}
+
+    /**
+     * The chat widget's script, for <x-webid::chat />.
+     */
+    public function chatScriptUrl(): string
+    {
+        return rtrim($this->chatUrl ?: $this->key->chatUrl(), '/').'/widget.js';
+    }
 
     public function key(): ConnectionKey
     {
