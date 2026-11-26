@@ -42,14 +42,31 @@ That is all. The package adds:
 |---|---|
 | `GET /webid/login` | sends the visitor to webid (`?return=/checkout` to come back there) |
 | `GET /webid/callback` | brings them back signed in (webid's default redirect address) |
+| `GET /webid/connect` | links the account a person is signed in to here (with your own password) with their webid account |
 | `GET /webid/token` | the visitor's webid token for the page, e.g. the chat widget (`data-token-url="/webid/token"`) |
 | `POST /webid/logout` | signs out here and on webid |
 | `POST /webid/backchannel-logout` | webid's own call: signs a person out here when they press “Sign out of every site” in their webid account, or disconnect the site |
 
 ## Users
 
-At sign-in the package finds the site's user by `webid_sub`, else by the same confirmed e-mail address (and links
-it), else creates one, and signs them in. The name is updated from webid each time. Everything webid gave the site
+At sign-in the package finds the site's user by `webid_sub`, else creates one, and signs them in. The name is updated
+from webid each time.
+
+Someone who already has an account on your site (with your own password) links it to webid while signed in to it:
+
+```blade
+<x-webid::button connect return="/account" />    {{-- "Connect webid", for signed-in users --}}
+```
+
+They confirm on webid's own page that the webid account is theirs; the link is kept only for the account that started
+it, and an account (or a webid account) already linked elsewhere is never taken over. The `Webid\Laravel\Events\Connected`
+event follows, with the same claims as `SignedIn`.
+
+An equal e-mail address never links accounts: your records cannot prove whose address an account was opened with, so
+linking by it would let someone who opened an account with another person's address read that person's data once they
+sign in with webid.
+
+Everything webid gave the site
 arrives in the `Webid\Laravel\Events\SignedIn` event as standard OpenID Connect claims (`$event->claims`: `email`,
 `email_verified`, `phone_number`, `preferred_username` (the webid ID), `address`, `locale`…, plus webid's `adult`), to
 keep more of it on your user.
@@ -59,6 +76,35 @@ If your users need more than a name, an e-mail and a password, create them yours
 ```php
 Webid\Laravel\Users::createUsing(fn (array $claims) => User::create([...]));
 ```
+
+## Orders in the chat
+
+With the chat on, a customer signed in with webid sees their orders in the chat with you: the order number and where
+it stands (accepted, preparing, on the way, delivered or cancelled), pinned above the messages and updated in place.
+Never what was ordered, the price or the address. Map your own statuses onto those stages in `config/webid.php`:
+
+```php
+'orders' => [
+    'stages' => ['pending' => 'accepted', 'processing' => 'preparing', 'shipped' => 'on_the_way', 'completed' => 'delivered', 'refunded' => 'cancelled'],
+],
+```
+
+Add the order while its customer is on your site (at checkout), then move it from anywhere:
+
+```php
+$orders = app(Webid\Laravel\Orders::class);
+$orders->add($request->session(), $order->number, $order->status);   // the customer's webid token is in their session
+$orders->move($order->number, $order->status);                        // from an admin page, a job, a webhook
+```
+
+`add()` works only for a customer signed in with webid (otherwise it returns false and sends nothing): webid takes an
+order only with that person's own token for your site. When a customer signs in with webid later, or connects their
+account, add their open orders from a listener of the `SignedIn` / `Connected` events. `move()` goes on your queue
+and is retried while webid cannot be reached; neither method ever throws, so your shop works the same without webid.
+
+A customer may ask webid to confirm orders before they show (in their account's Security settings). Their order then
+waits until they confirm it on webid; one they turn down is not shown, and its later stages are let be. Nothing changes
+on your side.
 
 ## Places
 

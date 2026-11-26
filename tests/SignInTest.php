@@ -8,6 +8,7 @@ use Illuminate\Support\Facades\Http;
 use InvalidArgumentException;
 use PHPUnit\Framework\Attributes\Test;
 use Webid\Laravel\ConnectionKey;
+use Webid\Laravel\Events\Connected;
 use Webid\Laravel\Events\SignedIn;
 use Webid\Laravel\Tests\Fixtures\User;
 use Webid\Laravel\Webid;
@@ -134,23 +135,116 @@ class SignInTest extends TestCase
     }
 
     #[Test]
-    public function the_same_person_comes_back_to_the_same_user_and_a_confirmed_email_links_an_old_user(): void
+    public function the_same_person_comes_back_to_the_same_user_and_an_equal_email_links_nobody(): void
     {
-        $old = User::create(['name' => 'Old name', 'email' => 'user@example.com', 'password' => 'x']);
+        // An account opened here with someone's address (the site cannot prove whose it is) is never taken over by it.
+        $other = User::create(['name' => 'Someone else', 'email' => 'user@example.com', 'password' => 'x']);
 
         $this->signIn(['sub' => 'sub-1', 'name' => 'Test', 'email' => 'user@example.com', 'email_verified' => true]);
-        $this->assertSame('sub-1', $old->refresh()->webid_sub);
-        $this->assertSame('Test', $old->name);
+        $this->assertNull($other->refresh()->webid_sub);
+        $user = User::firstWhere('webid_sub', 'sub-1');
+        $this->assertFalse($user->is($other));
+        $this->assertNull($user->email, 'the new user does not take an address another user has');
+        $this->assertAuthenticatedAs($user);
 
         auth()->logout();
+        $this->claims = [];
         $this->signIn(['sub' => 'sub-1', 'name' => 'Test U.', 'email' => 'new@example.com', 'email_verified' => true]);
-        $this->assertSame(1, User::count());
-        $this->assertSame('Test U.', $old->refresh()->name);
+        $this->assertSame(2, User::count());
+        $this->assertSame('Test U.', $user->refresh()->name);
+    }
 
+    /**
+     * Starts linking the signed-in account and comes back from webid with a code.
+     *
+     * @param  array<string, mixed>  $claims
+     */
+    private function connect(array $claims, string $query = '')
+    {
+        if ($this->claims === []) {
+            $this->fakeWebid($claims);
+        }
+        $location = $this->get('/webid/connect'.$query)->assertRedirect()->headers->get('Location');
+        parse_str((string) parse_url($location, PHP_URL_QUERY), $params);
+        $this->claims = [...$claims, 'nonce' => $params['nonce']];
+
+        return $this->get('/webid/callback?'.http_build_query(['code' => 'the-code', 'state' => $params['state']]));
+    }
+
+    #[Test]
+    public function a_person_signed_in_here_links_their_account_with_webid_themselves(): void
+    {
+        Event::fake([Connected::class, SignedIn::class]);
+        $user = User::create(['name' => 'Local name', 'email' => 'user@example.com', 'password' => 'x']);
+        $this->actingAs($user);
+
+        $this->connect(['sub' => 'sub-1', 'name' => 'Test User'], '?return=/account')->assertRedirect('/account')->assertSessionHas('webid_status', 'connected');
+
+        $this->assertSame('sub-1', $user->refresh()->webid_sub);
+        $this->assertSame(1, User::count());
+        $this->assertAuthenticatedAs($user);
+        $this->get('/webid/token')->assertOk();
+        Event::assertDispatched(Connected::class, fn (Connected $event): bool => $event->user->is($user) && $event->claims['sub'] === 'sub-1');
+        Event::assertNotDispatched(SignedIn::class);
+
+        // From now on signing in with webid comes back to this account.
         auth()->logout();
-        $this->signIn(['sub' => 'sub-2', 'name' => 'Someone', 'email' => 'user@example.com', 'email_verified' => false]);
-        $this->assertSame(2, User::count(), 'an unconfirmed address links nobody');
-        $this->assertNull(User::firstWhere('webid_sub', 'sub-2')->email, 'and the new user does not take an address another user has');
+        $this->claims = [];
+        $this->signIn(['sub' => 'sub-1', 'name' => 'Test User']);
+        $this->assertAuthenticatedAs($user);
+    }
+
+    #[Test]
+    public function linking_needs_a_signed_in_account_and_never_takes_another_ones_webid(): void
+    {
+        $this->fakeWebid(['sub' => 'sub-1']);
+        $this->get('/webid/connect?return=/account')->assertRedirect(route('webid.login', ['return' => '/account']));
+
+        $linked = User::create(['name' => 'Linked', 'email' => 'linked@example.com', 'password' => 'x', 'webid_sub' => 'sub-1']);
+        $user = User::create(['name' => 'Local', 'email' => 'user@example.com', 'password' => 'x']);
+        $this->actingAs($user);
+        $this->connect(['sub' => 'sub-1'])->assertSessionHas('webid_error');
+        $this->assertNull($user->refresh()->webid_sub, 'that webid account is already another user\'s here');
+        $this->get('/webid/token')->assertUnauthorized();
+
+        $user->forceFill(['webid_sub' => 'sub-9'])->save();
+        $this->claims = [];
+        $this->connect(['sub' => 'sub-2'])->assertSessionHas('webid_error');
+        $this->assertSame('sub-9', $user->refresh()->webid_sub, 'an account linked to one webid account keeps it');
+        $this->assertSame('sub-1', $linked->refresh()->webid_sub);
+    }
+
+    #[Test]
+    public function a_link_started_by_one_account_never_lands_on_another(): void
+    {
+        $first = User::create(['name' => 'First', 'email' => 'first@example.com', 'password' => 'x']);
+        $second = User::create(['name' => 'Second', 'email' => 'second@example.com', 'password' => 'x']);
+        $this->fakeWebid(['sub' => 'sub-1']);
+        $this->actingAs($first);
+        $location = $this->get('/webid/connect')->headers->get('Location');
+        parse_str((string) parse_url($location, PHP_URL_QUERY), $params);
+
+        // Another account is signed in by the time the person comes back from webid.
+        $this->actingAs($second);
+        $this->claims = ['sub' => 'sub-1', 'nonce' => $params['nonce']];
+        $this->get('/webid/callback?'.http_build_query(['code' => 'the-code', 'state' => $params['state']]))->assertSessionHas('webid_error');
+
+        $this->assertNull($first->refresh()->webid_sub);
+        $this->assertNull($second->refresh()->webid_sub);
+    }
+
+    #[Test]
+    public function an_abandoned_link_does_not_turn_a_later_sign_in_into_one(): void
+    {
+        $user = User::create(['name' => 'Local', 'email' => 'user@example.com', 'password' => 'x']);
+        $this->fakeWebid(['sub' => 'sub-1']);
+        $this->actingAs($user)->get('/webid/connect')->assertRedirect();
+
+        $this->claims = [];
+        $this->signIn(['sub' => 'sub-1', 'name' => 'Test User']);
+
+        $this->assertNull($user->refresh()->webid_sub);
+        $this->assertAuthenticatedAs(User::firstWhere('webid_sub', 'sub-1'));
     }
 
     #[Test]

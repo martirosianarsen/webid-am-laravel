@@ -37,7 +37,7 @@ class Webid
      */
     public function chatScriptUrl(): string
     {
-        return rtrim($this->chatUrl ?: $this->key->chatUrl(), '/').'/widget.js';
+        return $this->chatUrl().'/widget.js';
     }
 
     public function key(): ConnectionKey
@@ -176,9 +176,17 @@ class Webid
     }
 
     /**
+     * webid's chat (its address), where the site's orders go.
+     */
+    public function chatUrl(): string
+    {
+        return rtrim($this->chatUrl ?: $this->key->chatUrl(), '/');
+    }
+
+    /**
      * A token for the site itself (its client_id and secret), kept until shortly before it runs out.
      */
-    private function serviceToken(string $scope): string
+    public function serviceToken(string $scope): string
     {
         $cacheKey = 'webid.service_token.'.md5($this->key->clientId.$scope);
         $token = $this->cache->get($cacheKey);

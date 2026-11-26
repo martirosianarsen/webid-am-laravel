@@ -28,14 +28,24 @@ return [
 
     /*
      * The site's users: the model, and the column that keeps each user's webid id (see the published migration).
-     * A user who signs in for the first time is linked to an existing user with the same confirmed e-mail address
-     * (link_by_email), or created.
+     * A person who signs in for the first time becomes a new user. Someone who already has an account here links it
+     * themselves while signed in to it: <x-webid::button connect /> (/webid/connect). An equal e-mail address never
+     * links accounts, since the site's records cannot prove whose address it is.
      */
     'users' => [
         'model' => env('WEBID_USER_MODEL', 'App\\Models\\User'),
         'column' => 'webid_sub',
-        'link_by_email' => true,
         'remember' => true,
+    ],
+
+    /*
+     * Orders in the customer's chat (Webid\Laravel\Orders): the site's own order statuses, mapped onto webid's stages
+     * (accepted, preparing, on_the_way, delivered, cancelled). A status left out is not sent; webid's own stage names
+     * need no mapping. For example: 'pending' => 'accepted', 'processing' => 'preparing', 'shipped' => 'on_the_way',
+     * 'completed' => 'delivered', 'refunded' => 'cancelled'.
+     */
+    'orders' => [
+        'stages' => [],
     ],
 
     /*
