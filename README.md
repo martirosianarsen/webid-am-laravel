@@ -33,7 +33,7 @@ With the Chat service on for the site (and the business subscribed to it), add t
 
 ```blade
 <x-webid::chat />                                {{-- a chat button for customers --}}
-<x-webid::chat mode="agent" target="#inbox" />   {{-- the seller's inbox inside #inbox --}}
+<x-webid::chat mode="agent" target="#inbox" />   {{-- the staff inbox inside #inbox --}}
 ```
 
 That is all. The package adds:

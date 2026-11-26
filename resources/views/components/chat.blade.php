@@ -1,8 +1,8 @@
 {{--
     webid's chat on the site's pages (the site needs the Chat service on), with the visitor's webid sign-in:
     <x-webid::chat />                                     a floating button for customers
-    <x-webid::chat mode="agent" target="#inbox" />        the seller's inbox inside an element of the page
-    <x-webid::chat title="Pinza" lang="hy" />            the chat's title and language
+    <x-webid::chat mode="agent" target="#inbox" />        the staff inbox inside an element of the page
+    <x-webid::chat title="Example" lang="hy" />            the chat's title and language
 --}}
 @props(['mode' => null, 'target' => null, 'title' => null, 'lang' => null])
 @inject('webid', 'Webid\Laravel\Webid')
