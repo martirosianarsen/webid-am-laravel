@@ -86,10 +86,10 @@ class SignInTest extends TestCase
     {
         Event::fake([SignedIn::class]);
 
-        $this->signIn(['sub' => 'sub-1', 'name' => 'Aram Petrosyan', 'email' => ['address' => 'aram@example.am', 'verified' => true]])->assertRedirect('/');
+        $this->signIn(['sub' => 'sub-1', 'name' => 'Test User', 'email' => 'user@example.com', 'email_verified' => true])->assertRedirect('/');
 
         $user = User::sole();
-        $this->assertSame(['sub-1', 'Aram Petrosyan', 'aram@example.am'], [$user->webid_sub, $user->name, $user->email]);
+        $this->assertSame(['sub-1', 'Test User', 'user@example.com'], [$user->webid_sub, $user->name, $user->email]);
         $this->assertAuthenticatedAs($user);
         $this->assertSame('access-authorization_code', session(Webid::SESSION_TOKENS)['access_token']);
         Event::assertDispatched(SignedIn::class, fn (SignedIn $event): bool => $event->user->is($user) && $event->claims['sub'] === 'sub-1');
@@ -99,19 +99,19 @@ class SignInTest extends TestCase
     #[Test]
     public function the_same_person_comes_back_to_the_same_user_and_a_confirmed_email_links_an_old_user(): void
     {
-        $old = User::create(['name' => 'Old name', 'email' => 'aram@example.am', 'password' => 'x']);
+        $old = User::create(['name' => 'Old name', 'email' => 'user@example.com', 'password' => 'x']);
 
-        $this->signIn(['sub' => 'sub-1', 'name' => 'Aram', 'email' => ['address' => 'aram@example.am', 'verified' => true]]);
+        $this->signIn(['sub' => 'sub-1', 'name' => 'Test', 'email' => 'user@example.com', 'email_verified' => true]);
         $this->assertSame('sub-1', $old->refresh()->webid_sub);
-        $this->assertSame('Aram', $old->name);
+        $this->assertSame('Test', $old->name);
 
         auth()->logout();
-        $this->signIn(['sub' => 'sub-1', 'name' => 'Aram P.', 'email' => ['address' => 'new@example.am', 'verified' => true]]);
+        $this->signIn(['sub' => 'sub-1', 'name' => 'Test U.', 'email' => 'new@example.com', 'email_verified' => true]);
         $this->assertSame(1, User::count());
-        $this->assertSame('Aram P.', $old->refresh()->name);
+        $this->assertSame('Test U.', $old->refresh()->name);
 
         auth()->logout();
-        $this->signIn(['sub' => 'sub-2', 'name' => 'Someone', 'email' => ['address' => 'aram@example.am', 'verified' => false]]);
+        $this->signIn(['sub' => 'sub-2', 'name' => 'Someone', 'email' => 'user@example.com', 'email_verified' => false]);
         $this->assertSame(2, User::count(), 'an unconfirmed address links nobody');
         $this->assertNull(User::firstWhere('webid_sub', 'sub-2')->email, 'and the new user does not take an address another user has');
     }
@@ -119,7 +119,7 @@ class SignInTest extends TestCase
     #[Test]
     public function a_sign_in_that_did_not_start_here_or_was_cancelled_signs_nobody_in(): void
     {
-        $this->fakeWebid(['sub' => 'sub-1', 'name' => 'Aram']);
+        $this->fakeWebid(['sub' => 'sub-1', 'name' => 'Test']);
         $this->get('/webid/callback?code=x&state=made-up')->assertRedirect('/')->assertSessionHas('webid_error');
         $this->get('/webid/callback?error=access_denied')->assertRedirect('/')->assertSessionHas('webid_error', 'access_denied');
         $this->assertGuest();
@@ -131,7 +131,7 @@ class SignInTest extends TestCase
     {
         $this->getJson('/webid/token')->assertUnauthorized();
 
-        $this->signIn(['sub' => 'sub-1', 'name' => 'Aram']);
+        $this->signIn(['sub' => 'sub-1', 'name' => 'Test']);
         $this->withSession([Webid::SESSION_TOKENS => [...session(Webid::SESSION_TOKENS), 'expires_at' => time() - 1]]);
         $this->getJson('/webid/token')->assertOk()->assertJsonPath('access_token', 'access-refresh_token');
         Http::assertSent(fn (Request $request): bool => str_ends_with($request->url(), '/oauth/token') && $request['grant_type'] === 'refresh_token'
@@ -141,7 +141,7 @@ class SignInTest extends TestCase
     #[Test]
     public function signing_out_ends_the_webid_session_too(): void
     {
-        $this->signIn(['sub' => 'sub-1', 'name' => 'Aram']);
+        $this->signIn(['sub' => 'sub-1', 'name' => 'Test']);
         $location = $this->post('/webid/logout')->assertRedirect()->headers->get('Location');
 
         $this->assertGuest();

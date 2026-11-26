@@ -49,8 +49,9 @@ That is all. The package adds:
 
 At sign-in the package finds the site's user by `webid_sub`, else by the same confirmed e-mail address (and links
 it), else creates one, and signs them in. The name is updated from webid each time. Everything webid gave the site
-arrives in the `Webid\Laravel\Events\SignedIn` event (`$event->claims`: `email.address`, `phone.number`, `address`,
-`locale`…), to keep more of it on your user.
+arrives in the `Webid\Laravel\Events\SignedIn` event as standard OpenID Connect claims (`$event->claims`: `email`,
+`email_verified`, `phone_number`, `preferred_username` (the webid ID), `address`, `locale`…, plus webid's `adult`), to
+keep more of it on your user.
 
 If your users need more than a name, an e-mail and a password, create them yourself:
 

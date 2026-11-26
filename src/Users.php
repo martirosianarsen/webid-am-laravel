@@ -36,7 +36,8 @@ class Users
         $model = config('webid.users.model');
         $column = config('webid.users.column');
         $sub = (string) $claims['sub'];
-        $email = ($claims['email']['verified'] ?? false) ? ($claims['email']['address'] ?? null) : null;
+        // Standard OpenID Connect claims: "email" and "email_verified".
+        $email = ($claims['email_verified'] ?? false) === true && is_string($claims['email'] ?? null) ? $claims['email'] : null;
 
         $user = $model::query()->where($column, $sub)->first();
         if ($user === null && $email !== null && config('webid.users.link_by_email')) {
@@ -45,7 +46,7 @@ class Users
         if ($user === null) {
             // A new user takes the address only while no other user has it (an unconfirmed address may be someone
             // else's). Sites whose users must have an e-mail address create them with createUsing().
-            $address = $claims['email']['address'] ?? null;
+            $address = $claims['email'] ?? null;
             $free = is_string($address) && ! $model::query()->where('email', $address)->exists();
             $user = self::$create !== null ? (self::$create)($claims) : (new $model)->forceFill([
                 'name' => $claims['name'] ?? ($free ? $address : null) ?? 'webid',
