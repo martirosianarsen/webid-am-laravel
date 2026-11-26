@@ -2,6 +2,9 @@
 
 Sign in with webid on a Laravel site, from one connection key.
 
+Sign in with webid is free. The other services (Chat, Places) are paid: each works while the business's subscription
+to it is active, and is turned on for the site in its webid account (Services tab).
+
 ## Install
 
 ```bash
@@ -24,7 +27,7 @@ it needs no stylesheet (`theme="light"` for light backgrounds, `plain class="…
 <x-webid::button return="/checkout" theme="light" />
 ```
 
-With the Chat service on for the site, add the chat to the layout:
+With the Chat service on for the site (and the business subscribed to it), add the chat to the layout:
 
 ```blade
 <x-webid::chat />                                {{-- a chat button for customers --}}
@@ -55,7 +58,7 @@ Webid\Laravel\Users::createUsing(fn (array $claims) => User::create([...]));
 
 ## Places
 
-With the "Places" service turned on for the site:
+With the Places service on for the site (and the business subscribed to it; otherwise webid answers 403):
 
 ```php
 $places = app(Webid\Laravel\Webid::class)->places(['parent' => 'AM-ER']);
