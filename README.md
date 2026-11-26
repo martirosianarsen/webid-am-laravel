@@ -3,7 +3,8 @@
 Sign in with webid on a Laravel site, from one connection key.
 
 Sign in with webid is free. The other services (Chat, Places) are paid: each works while the business's subscription
-to it is active, and is turned on for the site in its webid account (Services tab).
+to it is active, and is turned on for the site on [business.webid.am](https://business.webid.am) (Services tab).
+Guides for every service, with examples in other languages, are on [developers.webid.am](https://developers.webid.am).
 
 ## Install
 
@@ -13,7 +14,8 @@ php artisan vendor:publish --tag=webid-migrations
 php artisan migrate
 ```
 
-Put the connection key that webid showed when you turned on "Sign in with webid" in `.env`:
+Put the connection key in `.env`. It is shown once, when you turn on "Sign in with webid" on the Site tab of
+[business.webid.am](https://business.webid.am):
 
 ```
 WEBID_KEY=wk_…
