@@ -3,9 +3,11 @@
 namespace Webid\Laravel;
 
 use Illuminate\Contracts\Cache\Repository as Cache;
+use Illuminate\Contracts\Http\Kernel;
 use Illuminate\Http\Client\Factory as Http;
 use Illuminate\Support\Facades\Blade;
 use Illuminate\Support\ServiceProvider;
+use Webid\Laravel\Http\Middleware\EndSignedOutSessions;
 
 /**
  * Sign in with webid: reads WEBID_KEY, adds the /webid routes and the <x-webid::button /> and <x-webid::chat />
@@ -31,6 +33,8 @@ class WebidServiceProvider extends ServiceProvider
     public function boot(): void
     {
         $this->loadRoutesFrom(__DIR__.'/../routes/webid.php');
+        // Sessions of a person webid signed out end on their next request, whatever page it is.
+        $this->app->make(Kernel::class)->appendMiddlewareToGroup('web', EndSignedOutSessions::class);
         Blade::anonymousComponentPath(__DIR__.'/../resources/views/components', 'webid');
 
         if ($this->app->runningInConsole()) {

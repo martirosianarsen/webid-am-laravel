@@ -44,6 +44,7 @@ That is all. The package adds:
 | `GET /webid/callback` | brings them back signed in (webid's default redirect address) |
 | `GET /webid/token` | the visitor's webid token for the page, e.g. the chat widget (`data-token-url="/webid/token"`) |
 | `POST /webid/logout` | signs out here and on webid |
+| `POST /webid/backchannel-logout` | webid's own call: signs a person out here when they press “Sign out of every site” in their webid account, or disconnect the site |
 
 ## Users
 

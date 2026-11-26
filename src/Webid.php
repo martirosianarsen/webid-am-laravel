@@ -18,6 +18,12 @@ class Webid
 {
     public const SESSION_TOKENS = 'webid.tokens';
 
+    /** Who signed in with webid in this session and when: ['sub' => ..., 'at' => microtime]. */
+    public const SESSION_SIGN_IN = 'webid.sign_in';
+
+    /** The event a logout token carries (OpenID Connect Back-Channel Logout). */
+    public const LOGOUT_EVENT = 'http://schemas.openid.net/event/backchannel-logout';
+
     public function __construct(
         private ConnectionKey $key,
         private Http $http,
@@ -206,15 +212,57 @@ class Webid
      */
     private function verifyIdToken(string $jwt, string $nonce): array
     {
-        $keys = $this->cache->remember('webid.jwks.'.md5($this->key->issuer), 3600, fn (): array => $this->http
-            ->acceptJson()->timeout(10)->get($this->discovery()['jwks_uri'])->throw()->json());
-        $claims = json_decode(json_encode(JWT::decode($jwt, JWK::parseKeySet($keys))), true);
-        $audience = (array) ($claims['aud'] ?? []);
-        if (($claims['iss'] ?? null) !== $this->key->issuer || ! in_array($this->key->clientId, $audience, true) || ! hash_equals($nonce, (string) ($claims['nonce'] ?? ''))) {
+        $claims = $this->verified($jwt);
+        if (! hash_equals($nonce, (string) ($claims['nonce'] ?? ''))) {
             throw new UnexpectedValueException('The ID token is not for this site.');
         }
 
         return $claims;
+    }
+
+    /**
+     * A token signed by webid for this site: its signature, issuer and audience hold.
+     *
+     * @return array<string, mixed>
+     */
+    private function verified(string $jwt): array
+    {
+        $keys = $this->cache->remember('webid.jwks.'.md5($this->key->issuer), 3600, fn (): array => $this->http
+            ->acceptJson()->timeout(10)->get($this->discovery()['jwks_uri'])->throw()->json());
+        $claims = json_decode(json_encode(JWT::decode($jwt, JWK::parseKeySet($keys))), true);
+        if (($claims['iss'] ?? null) !== $this->key->issuer || ! in_array($this->key->clientId, (array) ($claims['aud'] ?? []), true)) {
+            throw new UnexpectedValueException('The token is not for this site.');
+        }
+
+        return $claims;
+    }
+
+    /**
+     * Takes webid's word that a person is signed out of this site (a logout token posted to /webid/backchannel-logout)
+     * and returns that person's webid id. From then on signedOutSince() is true for the sessions they had.
+     */
+    public function signOut(string $logoutToken): string
+    {
+        $claims = $this->verified($logoutToken);
+        if (! isset($claims['sub'], $claims['events'][self::LOGOUT_EVENT]) || isset($claims['nonce'])) {
+            throw new UnexpectedValueException('Not a logout token.');
+        }
+        $this->cache->forever(self::signedOutKey((string) $claims['sub']), microtime(true));
+
+        return (string) $claims['sub'];
+    }
+
+    /**
+     * Whether webid signed this person out after the given moment (when their session here began).
+     */
+    public function signedOutSince(string $sub, float $since): bool
+    {
+        return (float) $this->cache->get(self::signedOutKey($sub), 0) > $since;
+    }
+
+    private static function signedOutKey(string $sub): string
+    {
+        return 'webid.signed_out.'.hash('sha256', $sub);
     }
 
     /**

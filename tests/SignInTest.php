@@ -58,6 +58,43 @@ class SignInTest extends TestCase
     }
 
     #[Test]
+    public function the_return_address_is_followed_only_to_a_page_of_the_site(): void
+    {
+        $this->fakeWebid(['sub' => 'user-1']);
+
+        foreach (['https://evil.test/steal', '//evil.test', '/\\evil.test'] as $elsewhere) {
+            $this->get('/webid/login?'.http_build_query(['return' => $elsewhere]))->assertRedirect()->assertSessionMissing('url.intended');
+        }
+        $this->get('/webid/login?return=/checkout')->assertRedirect()->assertSessionHas('url.intended', '/checkout');
+    }
+
+    #[Test]
+    public function webid_signs_a_person_out_of_the_site_without_a_visit(): void
+    {
+        $this->signIn(['sub' => 'sub-1', 'name' => 'Test User', 'email' => 'user@example.com', 'email_verified' => true]);
+        $user = User::sole();
+        $user->forceFill(['remember_token' => 'kept'])->save();
+        $this->get('/webid/token')->assertOk();
+
+        // A token that is not a logout token (an ID token, another site's, a forged one) changes nothing.
+        $this->post('/webid/backchannel-logout', ['logout_token' => $this->idToken(['sub' => 'sub-1', 'nonce' => 'n'])])->assertStatus(400);
+        $this->post('/webid/backchannel-logout', ['logout_token' => $this->idToken(['sub' => 'sub-1', 'aud' => 'another-site', 'events' => [Webid::LOGOUT_EVENT => []]])])->assertStatus(400);
+        $this->post('/webid/backchannel-logout', ['logout_token' => 'not-a-token'])->assertStatus(400);
+        $this->get('/webid/token')->assertOk();
+
+        $this->post('/webid/backchannel-logout', ['logout_token' => $this->idToken(['sub' => 'sub-1', 'events' => [Webid::LOGOUT_EVENT => (object) []]])])->assertOk();
+
+        $this->get('/webid/token')->assertStatus(401);
+        $this->assertGuest();
+        $this->assertNotSame('kept', $user->refresh()->remember_token, '"remember me" stops working on every device');
+
+        // Signing in again afterwards holds.
+        $this->claims = [];
+        $this->signIn(['sub' => 'sub-1', 'name' => 'Test User', 'email' => 'user@example.com', 'email_verified' => true]);
+        $this->get('/webid/token')->assertOk();
+    }
+
+    #[Test]
     public function the_connection_key_holds_everything_needed(): void
     {
         $key = ConnectionKey::parse(self::connectionKey());
