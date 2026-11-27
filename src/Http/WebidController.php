@@ -83,7 +83,15 @@ class WebidController extends Controller
         if ($connecting !== null) {
             return $this->finishConnecting($request, $users, $connecting, $claims);
         }
-        $user = $users->resolve($claims);
+        try {
+            $user = $users->resolve($claims);
+        } catch (Throwable $exception) {
+            // The site could not make a user of this person (Users::createUsing said why): nobody is signed in.
+            report($exception);
+            $request->session()->forget(Webid::SESSION_TOKENS);
+
+            return redirect(config('webid.home'))->with('webid_error', $exception->getMessage());
+        }
         Auth::login($user, (bool) config('webid.users.remember'));
         $this->signedInWith($request, $claims);
         event(new SignedIn($user, $claims));

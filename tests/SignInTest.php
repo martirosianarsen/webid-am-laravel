@@ -7,10 +7,12 @@ use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Http;
 use InvalidArgumentException;
 use PHPUnit\Framework\Attributes\Test;
+use RuntimeException;
 use Webid\Laravel\ConnectionKey;
 use Webid\Laravel\Events\Connected;
 use Webid\Laravel\Events\SignedIn;
 use Webid\Laravel\Tests\Fixtures\User;
+use Webid\Laravel\Users;
 use Webid\Laravel\Webid;
 
 class SignInTest extends TestCase
@@ -137,6 +139,23 @@ class SignInTest extends TestCase
         Event::assertDispatched(SignedIn::class, fn (SignedIn $event): bool => $event->user->is($user) && $event->claims['sub'] === 'sub-1');
         // The page gets the chat token only; the access token stays on the server.
         $this->get('/webid/token')->assertOk()->assertJsonPath('access_token', 'chat-for-access-authorization_code');
+    }
+
+    #[Test]
+    public function a_person_the_site_cannot_make_a_user_of_is_not_signed_in(): void
+    {
+        Users::createUsing(fn (array $claims) => throw new RuntimeException('An e-mail address is needed here.'));
+
+        try {
+            $this->signIn(['sub' => 'sub-1', 'name' => 'Test User'])->assertRedirect('/')->assertSessionHas('webid_error', 'An e-mail address is needed here.');
+        } finally {
+            Users::createUsing(null);
+        }
+
+        $this->assertGuest();
+        $this->assertSame(0, User::count());
+        $this->assertFalse(session()->has(Webid::SESSION_TOKENS));
+        $this->get('/webid/token')->assertUnauthorized();
     }
 
     #[Test]

@@ -77,6 +77,10 @@ If your users need more than a name, an e-mail and a password, create them yours
 Webid\Laravel\Users::createUsing(fn (array $claims) => User::create([...]));
 ```
 
+When your callback cannot make a user of the person (say, your users need an e-mail address and webid gave none),
+throw: nobody is signed in, and the visitor is sent to `config('webid.home')` with your message in the session as
+`webid_error`.
+
 ## Orders in the chat
 
 With the chat on, a customer signed in with webid sees their orders in the chat with you: the order number and where
@@ -97,10 +101,31 @@ $orders->add($request->session(), $order->number, $order->status);   // the cust
 $orders->move($order->number, $order->status);                        // from an admin page, a job, a webhook
 ```
 
+`moveNow()` sends the stage at once and leaves it to the queue only while webid cannot be reached: for a site whose
+queue runs from cron, where a queued stage would reach the customer a minute late.
+
 `add()` works only for a customer signed in with webid (otherwise it returns false and sends nothing): webid takes an
 order only with that person's own token for your site. When a customer signs in with webid later, or connects their
 account, add their open orders from a listener of the `SignedIn` / `Connected` events. `move()` goes on your queue
 and is retried while webid cannot be reached; neither method ever throws, so your shop works the same without webid.
+
+### Telling your staff of a new order
+
+Your staff (members of the business who are signed in with webid) can hear of every new order at once, in the chat
+inbox (`data-mode="agent"`) and on their devices, with a link to the order's page on your site. Call `placed()` at
+checkout instead of `add()`, with the address of that page (it must be on one of the site's own addresses):
+
+```php
+$orders->placed($request->session(), $order->number, $order->status, route('admin.orders.show', $order));
+```
+
+- A customer signed in with webid: the order is added as with `add()`, and the notice stands in that customer's own
+  conversation, so your staff can write to them there. The customer sees the order, never the notice or the link.
+- A guest, or a customer who is not signed in with webid: the notice goes to the "New orders" conversation of the
+  inbox. It is read only: there is nobody to answer, and nothing goes back to the customer.
+
+`placed()` never throws; while webid cannot be reached the notice is tried again on your queue. `announce($number,
+$page)` sends only the notice (the second case above).
 
 A customer may ask webid to confirm orders before they show (in their account's Security settings). Their order then
 waits until they confirm it on webid; one they turn down is not shown, and its later stages are let be. Nothing changes

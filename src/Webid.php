@@ -2,6 +2,7 @@
 
 namespace Webid\Laravel;
 
+use Closure;
 use Firebase\JWT\JWK;
 use Firebase\JWT\JWT;
 use Illuminate\Contracts\Cache\Repository as Cache;
@@ -24,8 +25,11 @@ class Webid
     /** The event a logout token carries (OpenID Connect Back-Channel Logout). */
     public const LOGOUT_EVENT = 'http://schemas.openid.net/event/backchannel-logout';
 
+    /**
+     * @param  ConnectionKey|Closure(): ConnectionKey  $key  read when first needed: a site without its key yet still starts
+     */
     public function __construct(
-        private ConnectionKey $key,
+        private ConnectionKey|Closure $key,
         private Http $http,
         private Cache $cache,
         private ?string $apiUrl = null,
@@ -42,6 +46,10 @@ class Webid
 
     public function key(): ConnectionKey
     {
+        if ($this->key instanceof Closure) {
+            $this->key = ($this->key)();
+        }
+
         return $this->key;
     }
 
@@ -52,8 +60,8 @@ class Webid
      */
     public function discovery(): array
     {
-        return $this->cache->remember('webid.discovery.'.md5($this->key->issuer), 3600, fn (): array => $this->http
-            ->acceptJson()->timeout(10)->get($this->key->issuer.'/.well-known/openid-configuration')->throw()->json());
+        return $this->cache->remember('webid.discovery.'.md5($this->key()->issuer), 3600, fn (): array => $this->http
+            ->acceptJson()->timeout(10)->get($this->key()->issuer.'/.well-known/openid-configuration')->throw()->json());
     }
 
     /**
@@ -68,7 +76,7 @@ class Webid
 
         return $this->discovery()['authorization_endpoint'].'?'.http_build_query([
             'response_type' => 'code',
-            'client_id' => $this->key->clientId,
+            'client_id' => $this->key()->clientId,
             'redirect_uri' => $redirectUri,
             'scope' => 'openid',
             'state' => $state,
@@ -116,7 +124,7 @@ class Webid
         if ($access === null) {
             return null;
         }
-        $endpoint = $this->discovery()['webid_chat_token_endpoint'] ?? $this->key->issuer.'/oauth/chat-token';
+        $endpoint = $this->discovery()['webid_chat_token_endpoint'] ?? $this->key()->issuer.'/oauth/chat-token';
         $response = $this->http->acceptJson()->timeout(10)->withToken($access)->post($endpoint);
         if (! $response->successful() || ! is_string($response->json('chat_token'))) {
             return null;
@@ -167,7 +175,7 @@ class Webid
             return null;
         }
 
-        return $endpoint.'?'.http_build_query(['client_id' => $this->key->clientId, 'post_logout_redirect_uri' => $returnTo]);
+        return $endpoint.'?'.http_build_query(['client_id' => $this->key()->clientId, 'post_logout_redirect_uri' => $returnTo]);
     }
 
     /**
@@ -203,7 +211,7 @@ class Webid
 
     private function apiUrl(): string
     {
-        return rtrim($this->apiUrl ?: $this->key->apiUrl(), '/');
+        return rtrim($this->apiUrl ?: $this->key()->apiUrl(), '/');
     }
 
     /**
@@ -211,7 +219,7 @@ class Webid
      */
     public function chatUrl(): string
     {
-        return rtrim($this->chatUrl ?: $this->key->chatUrl(), '/');
+        return rtrim($this->chatUrl ?: $this->key()->chatUrl(), '/');
     }
 
     /**
@@ -219,7 +227,7 @@ class Webid
      */
     public function serviceToken(string $scope): string
     {
-        $cacheKey = 'webid.service_token.'.md5($this->key->clientId.$scope);
+        $cacheKey = 'webid.service_token.'.md5($this->key()->clientId.$scope);
         $token = $this->cache->get($cacheKey);
         if (is_string($token)) {
             return $token;
@@ -237,7 +245,7 @@ class Webid
     private function tokenRequest(array $form): array
     {
         $response = $this->http->asForm()->acceptJson()->timeout(10)
-            ->withBasicAuth(rawurlencode($this->key->clientId), rawurlencode($this->key->clientSecret))
+            ->withBasicAuth(rawurlencode($this->key()->clientId), rawurlencode($this->key()->clientSecret))
             ->post($this->discovery()['token_endpoint'], $form);
         if (! $response->successful() || ! is_string($response->json('access_token'))) {
             throw new RuntimeException('webid refused the request: '.($response->json('error_description') ?? $response->json('error') ?? $response->status()));
@@ -266,10 +274,10 @@ class Webid
      */
     private function verified(string $jwt): array
     {
-        $keys = $this->cache->remember('webid.jwks.'.md5($this->key->issuer), 3600, fn (): array => $this->http
+        $keys = $this->cache->remember('webid.jwks.'.md5($this->key()->issuer), 3600, fn (): array => $this->http
             ->acceptJson()->timeout(10)->get($this->discovery()['jwks_uri'])->throw()->json());
         $claims = json_decode(json_encode(JWT::decode($jwt, JWK::parseKeySet($keys))), true);
-        if (($claims['iss'] ?? null) !== $this->key->issuer || ! in_array($this->key->clientId, (array) ($claims['aud'] ?? []), true)) {
+        if (($claims['iss'] ?? null) !== $this->key()->issuer || ! in_array($this->key()->clientId, (array) ($claims['aud'] ?? []), true)) {
             throw new UnexpectedValueException('The token is not for this site.');
         }
 

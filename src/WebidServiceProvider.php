@@ -22,7 +22,7 @@ class WebidServiceProvider extends ServiceProvider
     {
         $this->mergeConfigFrom(__DIR__.'/../config/webid.php', 'webid');
         $this->app->singleton(Webid::class, fn ($app): Webid => new Webid(
-            ConnectionKey::parse(config('webid.key')),
+            fn (): ConnectionKey => ConnectionKey::parse(config('webid.key')),
             $app->make(Http::class),
             $app->make(Cache::class),
             config('webid.api_url'),

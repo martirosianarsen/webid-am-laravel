@@ -4,6 +4,7 @@ namespace Webid\Laravel\Tests;
 
 use Illuminate\Support\Facades\Blade;
 use PHPUnit\Framework\Attributes\Test;
+use Webid\Laravel\Tests\Fixtures\User;
 
 class ComponentsTest extends TestCase
 {
@@ -32,9 +33,14 @@ class ComponentsTest extends TestCase
         $this->assertStringContainsString('src="https://chat.webid.test/widget.js"', $html);
         $this->assertStringContainsString('data-client-id="'.self::CLIENT.'"', $html);
         $this->assertStringContainsString('data-token-url="http://localhost/webid/token"', $html);
-        $this->assertStringContainsString('data-login-url="http://localhost/webid/login?return=', $html);
+        // The widget adds the page to come back to; a visitor nobody knows signs in with webid.
+        $this->assertStringContainsString('data-login-url="http://localhost/webid/login"', $html);
         $this->assertStringContainsString('data-mode="agent"', $html);
         $this->assertStringContainsString('data-target="#inbox"', $html);
         $this->assertStringNotContainsString('data-title', $html);
+
+        // Someone signed in here with the site's own password connects that account instead of becoming another.
+        $this->actingAs(new User);
+        $this->assertStringContainsString('data-login-url="http://localhost/webid/connect"', Blade::render('<x-webid::chat />'));
     }
 }
