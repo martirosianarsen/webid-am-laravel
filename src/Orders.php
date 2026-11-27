@@ -22,7 +22,8 @@ use Webid\Laravel\Jobs\SendOrderStage;
  * It also tells the business's own members (those signed in with webid, in the chat inbox and on their devices) of a
  * new order, with a link to its page on this site: placed() for every order, whoever placed it. A customer signed in
  * with webid has it in their own conversation, where the members can answer them; a guest's, or a customer's without
- * webid, goes to the "New orders" conversation, which is read only.
+ * webid, goes to the "Order notices" conversation, which is read only. cancelled() tells them the same way that a
+ * customer cancelled an order.
  */
 class Orders
 {
@@ -115,7 +116,7 @@ class Orders
     /**
      * A new order, whoever placed it: the business's members hear of it at once, with a link to its page on this site
      * ($page, on one of the site's own addresses). In the customer's own conversation when they are signed in with
-     * webid (the order shows to the customer there as well, see add()); in the "New orders" conversation otherwise.
+     * webid (the order shows to the customer there as well, see add()); in the "Order notices" conversation otherwise.
      */
     public function placed(Session $session, string $reference, string $status, string $page): void
     {
@@ -126,14 +127,38 @@ class Orders
 
     /**
      * Tells the business's members of a new order that has no conversation of its own (a guest's, a customer's
-     * without webid): in the "New orders" conversation of their inbox and on their devices, with a link to the order's
-     * page on this site. Told twice, it shows once. Returns whether webid took it now; while webid cannot be reached
-     * it is tried again on the queue. Never throws.
+     * without webid): in the "Order notices" conversation of their inbox and on their devices, with a link to the
+     * order's page on this site. Told twice, it shows once. Returns whether webid took it now; while webid cannot be
+     * reached it is tried again on the queue. Never throws.
      */
     public function announce(string $reference, string $page): bool
     {
+        return $this->notify('new_order', $reference, $page);
+    }
+
+    /**
+     * Tells the business's members that the customer cancelled an order, with a link to its page on this site: in
+     * that customer's own conversation when webid has the order there, in the "Order notices" conversation otherwise.
+     * Call it when the customer cancels (beside move()/moveNow(), which shows the customer their order cancelled);
+     * an order your staff cancel needs no notice. Returns whether webid took it now; retried like announce().
+     */
+    public function cancelled(string $reference, string $page): bool
+    {
+        return $this->notify('order_cancelled', $reference, $page);
+    }
+
+    /**
+     * Sends a notice now. Throws when webid did not take it.
+     */
+    public function tell(string $reference, string $page, string $kind = 'new_order'): void
+    {
+        $this->site()->post($this->webid->chatUrl().'/api/v1/notices', ['kind' => $kind, 'reference' => $reference, 'url' => $page])->throw();
+    }
+
+    private function notify(string $kind, string $reference, string $page): bool
+    {
         try {
-            $this->tell($reference, $page);
+            $this->tell($reference, $page, $kind);
 
             return true;
         } catch (Throwable $exception) {
@@ -141,19 +166,11 @@ class Orders
             // What webid refused (the chat off for the site, a page elsewhere) would be refused again.
             $refused = $exception instanceof RequestException && $exception->response->clientError() && $exception->response->status() !== 429;
             if (! $refused && config('queue.default') !== 'sync') {
-                dispatch(new SendOrderNotice($reference, $page))->delay(30);
+                dispatch(new SendOrderNotice($reference, $page, $kind))->delay(30);
             }
 
             return false;
         }
-    }
-
-    /**
-     * Sends the notice of a new order now. Throws when webid did not take it.
-     */
-    public function tell(string $reference, string $page): void
-    {
-        $this->site()->post($this->webid->chatUrl().'/api/v1/notices', ['kind' => 'new_order', 'reference' => $reference, 'url' => $page])->throw();
     }
 
     /**

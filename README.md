@@ -121,11 +121,18 @@ $orders->placed($request->session(), $order->number, $order->status, route('admi
 
 - A customer signed in with webid: the order is added as with `add()`, and the notice stands in that customer's own
   conversation, so your staff can write to them there. The customer sees the order, never the notice or the link.
-- A guest, or a customer who is not signed in with webid: the notice goes to the "New orders" conversation of the
+- A guest, or a customer who is not signed in with webid: the notice goes to the "Order notices" conversation of the
   inbox. It is read only: there is nobody to answer, and nothing goes back to the customer.
 
 `placed()` never throws; while webid cannot be reached the notice is tried again on your queue. `announce($number,
 $page)` sends only the notice (the second case above).
+
+When a customer cancels an order, tell your staff the same way (an order your staff cancel needs no notice):
+
+```php
+$orders->moveNow($order->number, 'cancelled');                                   // the customer sees it cancelled
+$orders->cancelled($order->number, route('admin.orders.show', $order));          // your staff hear of it
+```
 
 A customer may ask webid to confirm orders before they show (in their account's Security settings). Their order then
 waits until they confirm it on webid; one they turn down is not shown, and its later stages are let be. Nothing changes

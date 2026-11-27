@@ -144,6 +144,25 @@ class OrdersTest extends TestCase
     }
 
     #[Test]
+    public function the_businesss_members_are_told_when_the_customer_cancels_an_order(): void
+    {
+        config(['queue.default' => 'database']);
+        Queue::fake();
+        $page = 'https://shop.example.com/admin/orders/1024';
+
+        $this->assertTrue(app(Orders::class)->cancelled('1024', $page));
+        $this->assertSame(['POST', self::NOTICES, ['kind' => 'order_cancelled', 'reference' => '1024', 'url' => $page]], [$this->sent[0]->method(), $this->sent[0]->url(), $this->sent[0]->data()]);
+
+        // webid out of reach: tried again on the queue, still as a cancellation.
+        $this->chatStatus = 503;
+        $this->assertFalse(app(Orders::class)->cancelled('1025', $page));
+        Queue::assertPushed(SendOrderNotice::class, fn (SendOrderNotice $job): bool => [$job->reference, $job->kind] === ['1025', 'order_cancelled']);
+        $this->chatStatus = 200;
+        (new SendOrderNotice('1025', $page, 'order_cancelled'))->handle(app(Orders::class));
+        $this->assertSame('order_cancelled', end($this->sent)->data()['kind']);
+    }
+
+    #[Test]
     public function a_notice_webid_could_not_be_reached_for_is_tried_again(): void
     {
         config(['queue.default' => 'database']);

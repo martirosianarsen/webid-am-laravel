@@ -10,8 +10,8 @@ use Illuminate\Queue\InteractsWithQueue;
 use Webid\Laravel\Orders;
 
 /**
- * The notice of a new order webid could not be reached for: tried again for about an hour. One webid refuses (the
- * chat is off for the site, the page is not on the site) is let be.
+ * The notice of an order (a new one, or one its customer cancelled) webid could not be reached for: tried again for
+ * about an hour. One webid refuses (the chat is off for the site, the page is not on the site) is let be.
  */
 class SendOrderNotice implements ShouldQueue
 {
@@ -22,12 +22,12 @@ class SendOrderNotice implements ShouldQueue
     /** @var list<int> */
     public array $backoff = [30, 120, 600, 1800];
 
-    public function __construct(public string $reference, public string $page) {}
+    public function __construct(public string $reference, public string $page, public string $kind = 'new_order') {}
 
     public function handle(Orders $orders): void
     {
         try {
-            $orders->tell($this->reference, $this->page);
+            $orders->tell($this->reference, $this->page, $this->kind);
         } catch (RequestException $exception) {
             if (! $exception->response->clientError() || $exception->response->status() === 429) {
                 throw $exception;
