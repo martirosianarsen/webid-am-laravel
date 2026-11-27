@@ -283,6 +283,18 @@ class SignInTest extends TestCase
     }
 
     #[Test]
+    public function another_account_signed_in_here_gets_no_chat_token_of_the_webid_person(): void
+    {
+        $this->signIn(['sub' => 'sub-1', 'name' => 'Test']);
+        $this->getJson('/webid/token')->assertOk();
+
+        // Someone signs in here to another account (by its own password) in the same browser session.
+        $other = User::create(['name' => 'Someone else', 'email' => 'other@example.com', 'password' => 'x']);
+        $this->actingAs($other);
+        $this->getJson('/webid/token')->assertUnauthorized();
+    }
+
+    #[Test]
     public function signing_out_ends_the_webid_session_too(): void
     {
         $this->signIn(['sub' => 'sub-1', 'name' => 'Test']);

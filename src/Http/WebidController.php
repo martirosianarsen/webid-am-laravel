@@ -128,8 +128,13 @@ class WebidController extends Controller
 
     public function token(Request $request): JsonResponse
     {
-        // The page gets the chat token only, never the access token that reads the visitor's data.
-        $token = $request->user() ? $this->webid->chatToken($request->session()) : null;
+        // The page gets the chat token only, never the access token that reads the visitor's data, and only while the
+        // user signed in here is the person who signed in with webid in this session (another account signed in here
+        // since, by its own password, gets none).
+        $signIn = $request->session()->get(Webid::SESSION_SIGN_IN);
+        $user = $request->user();
+        $same = $user !== null && is_array($signIn) && (string) $user->getAttribute(config('webid.users.column')) === (string) ($signIn['sub'] ?? '');
+        $token = $same ? $this->webid->chatToken($request->session()) : null;
 
         return $token === null
             ? response()->json(['message' => 'Not signed in with webid.'], 401)
