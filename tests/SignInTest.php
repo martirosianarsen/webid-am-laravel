@@ -36,6 +36,10 @@ class SignInTest extends TestCase
                     'access_token' => 'access-'.($request['grant_type'] ?? ''), 'refresh_token' => 'refresh', 'expires_in' => $expiresIn,
                     'id_token' => $this->idToken(['nonce' => '', ...$claims]),
                 ]),
+                // The page's token, traded for the access token: named after it here, to see which one was traded.
+                str_ends_with($request->url(), '/oauth/chat-token') => Http::response([
+                    'chat_token' => 'chat-for-'.substr((string) $request->header('Authorization')[0], 7), 'token_type' => 'Bearer', 'expires_in' => 600,
+                ]),
                 default => Http::response(['message' => 'not here'], 404),
             };
         });
@@ -131,7 +135,16 @@ class SignInTest extends TestCase
         $this->assertAuthenticatedAs($user);
         $this->assertSame('access-authorization_code', session(Webid::SESSION_TOKENS)['access_token']);
         Event::assertDispatched(SignedIn::class, fn (SignedIn $event): bool => $event->user->is($user) && $event->claims['sub'] === 'sub-1');
-        $this->get('/webid/token')->assertOk()->assertJsonPath('access_token', 'access-authorization_code');
+        // The page gets the chat token only; the access token stays on the server.
+        $this->get('/webid/token')->assertOk()->assertJsonPath('access_token', 'chat-for-access-authorization_code');
+    }
+
+    #[Test]
+    public function an_address_webid_has_not_confirmed_is_not_taken(): void
+    {
+        $this->signIn(['sub' => 'sub-1', 'name' => 'Test User', 'email' => 'user@example.com', 'email_verified' => false])->assertRedirect('/');
+
+        $this->assertNull(User::sole()->email, 'mail to an unconfirmed address could reach someone else');
     }
 
     #[Test]
@@ -264,7 +277,7 @@ class SignInTest extends TestCase
 
         $this->signIn(['sub' => 'sub-1', 'name' => 'Test']);
         $this->withSession([Webid::SESSION_TOKENS => [...session(Webid::SESSION_TOKENS), 'expires_at' => time() - 1]]);
-        $this->getJson('/webid/token')->assertOk()->assertJsonPath('access_token', 'access-refresh_token');
+        $this->getJson('/webid/token')->assertOk()->assertJsonPath('access_token', 'chat-for-access-refresh_token');
         Http::assertSent(fn (Request $request): bool => str_ends_with($request->url(), '/oauth/token') && $request['grant_type'] === 'refresh_token'
             && $request->hasHeader('Authorization', 'Basic '.base64_encode(self::CLIENT.':'.self::SECRET)));
     }
@@ -276,7 +289,9 @@ class SignInTest extends TestCase
         $location = $this->post('/webid/logout')->assertRedirect()->headers->get('Location');
 
         $this->assertGuest();
-        $this->assertStringStartsWith(self::ISSUER.'/oauth/logout?id_token_hint=', $location);
+        // The site is named, the ID token (the person's data) never put in the address.
+        $this->assertStringStartsWith(self::ISSUER.'/oauth/logout?client_id='.self::CLIENT, $location);
+        $this->assertStringNotContainsString('id_token_hint', $location);
         $this->assertStringContainsString('post_logout_redirect_uri='.urlencode('http://localhost'), $location);
     }
 

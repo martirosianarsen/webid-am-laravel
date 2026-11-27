@@ -128,7 +128,8 @@ class WebidController extends Controller
 
     public function token(Request $request): JsonResponse
     {
-        $token = $request->user() ? $this->webid->accessToken($request->session()) : null;
+        // The page gets the chat token only, never the access token that reads the visitor's data.
+        $token = $request->user() ? $this->webid->chatToken($request->session()) : null;
 
         return $token === null
             ? response()->json(['message' => 'Not signed in with webid.'], 401)
@@ -158,12 +159,12 @@ class WebidController extends Controller
 
     public function logout(Request $request): RedirectResponse
     {
-        $idToken = $request->session()->get(Webid::SESSION_TOKENS)['id_token'] ?? null;
+        $signedIn = $request->session()->has(Webid::SESSION_TOKENS);
         Auth::logout();
         $request->session()->invalidate();
         $request->session()->regenerateToken();
         $home = url(config('webid.home'));
 
-        return redirect()->away($this->webid->logoutUrl($idToken, $home) ?? $home);
+        return redirect()->away(($signedIn ? $this->webid->logoutUrl($home) : null) ?? $home);
     }
 }

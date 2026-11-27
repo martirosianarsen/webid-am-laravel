@@ -98,8 +98,37 @@ class Webid
         return ['claims' => $claims, 'tokens' => $tokens];
     }
 
+    /** The chat widget's token in the visitor's session: ['token' => ..., 'expires_at' => ...]. */
+    public const SESSION_CHAT_TOKEN = 'webid.chat_token';
+
     /**
-     * The signed-in visitor's access token for webid (for example for the chat widget), refreshed when it ran out.
+     * The token for the chat widget on the site's pages: it opens the chat and nothing else (webid's UserInfo refuses
+     * it), so a script on the page cannot read the visitor's data with it. Traded for the access token on webid, kept
+     * in the session for its few minutes. Null when nobody is signed in with webid or the site has no chat.
+     */
+    public function chatToken(Session $session): ?string
+    {
+        $kept = $session->get(self::SESSION_CHAT_TOKEN);
+        if (is_array($kept) && ($kept['expires_at'] ?? 0) > time() + 30) {
+            return $kept['token'];
+        }
+        $access = $this->accessToken($session);
+        if ($access === null) {
+            return null;
+        }
+        $endpoint = $this->discovery()['webid_chat_token_endpoint'] ?? $this->key->issuer.'/oauth/chat-token';
+        $response = $this->http->acceptJson()->timeout(10)->withToken($access)->post($endpoint);
+        if (! $response->successful() || ! is_string($response->json('chat_token'))) {
+            return null;
+        }
+        $session->put(self::SESSION_CHAT_TOKEN, ['token' => $response->json('chat_token'), 'expires_at' => time() + (int) $response->json('expires_in', 600)]);
+
+        return $response->json('chat_token');
+    }
+
+    /**
+     * The signed-in visitor's access token for webid, refreshed when it ran out. It stays on the site's server: the
+     * pages get the chat token (chatToken()).
      */
     public function accessToken(Session $session): ?string
     {
@@ -127,16 +156,18 @@ class Webid
     }
 
     /**
-     * Where to send the visitor to sign out of webid too, coming back to the site.
+     * Where to send the visitor to sign out of webid too, coming back to the site. The address names the site
+     * (client_id), never the ID token: that would leave the person's data in browser history and server logs. webid
+     * asks the person whether to sign out of webid as well.
      */
-    public function logoutUrl(?string $idToken, string $returnTo): ?string
+    public function logoutUrl(string $returnTo): ?string
     {
         $endpoint = $this->discovery()['end_session_endpoint'] ?? null;
-        if (! is_string($endpoint) || $idToken === null) {
+        if (! is_string($endpoint)) {
             return null;
         }
 
-        return $endpoint.'?'.http_build_query(['id_token_hint' => $idToken, 'post_logout_redirect_uri' => $returnTo]);
+        return $endpoint.'?'.http_build_query(['client_id' => $this->key->clientId, 'post_logout_redirect_uri' => $returnTo]);
     }
 
     /**
@@ -284,6 +315,8 @@ class Webid
             'id_token' => $tokens['id_token'] ?? null,
             'expires_at' => time() + (int) ($tokens['expires_in'] ?? 900),
         ]);
+        // A chat token from before (another sign-in, or older permissions) is not handed out again.
+        $session->forget(self::SESSION_CHAT_TOKEN);
     }
 
     private static function random(int $bytes): string

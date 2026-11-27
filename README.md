@@ -43,7 +43,7 @@ That is all. The package adds:
 | `GET /webid/login` | sends the visitor to webid (`?return=/checkout` to come back there) |
 | `GET /webid/callback` | brings them back signed in (webid's default redirect address) |
 | `GET /webid/connect` | links the account a person is signed in to here (with your own password) with their webid account |
-| `GET /webid/token` | the visitor's webid token for the page, e.g. the chat widget (`data-token-url="/webid/token"`) |
+| `GET /webid/token` | the token for the chat widget on the page (`data-token-url="/webid/token"`): a short-lived chat token that opens the chat and nothing else; the visitor's access token stays on the server |
 | `POST /webid/logout` | signs out here and on webid |
 | `POST /webid/backchannel-logout` | webid's own call: signs a person out here when they press “Sign out of every site” in their webid account, or disconnect the site |
 

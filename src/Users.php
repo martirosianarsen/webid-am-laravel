@@ -10,8 +10,8 @@ use Illuminate\Support\Str;
 use RuntimeException;
 
 /**
- * The site's user for a webid sign-in: the one linked to this webid id, else a new one. The name is kept up to date
- * from webid.
+ * The site's user for a webid sign-in: the one linked to this webid id, else a new one, with the e-mail address only
+ * when webid says it is confirmed (email_verified). The name is kept up to date from webid.
  *
  * A user who already has an account here is never linked by an equal e-mail address: the site's own records cannot
  * prove that address belongs to them (an account may have been opened with someone else's address). They link it
@@ -43,8 +43,8 @@ class Users
 
         $user = $model::query()->where($column, (string) $claims['sub'])->first();
         if ($user === null) {
-            // A new user takes the address only while no other user has it.
-            $address = $claims['email'] ?? null;
+            // A new user takes the address only when webid says it is confirmed (email_verified) and no other user has it.
+            $address = ($claims['email_verified'] ?? false) === true ? ($claims['email'] ?? null) : null;
             $free = is_string($address) && ! $model::query()->where('email', $address)->exists();
             $user = self::$create !== null ? (self::$create)($claims) : (new $model)->forceFill([
                 'name' => $claims['name'] ?? ($free ? $address : null) ?? 'webid',
