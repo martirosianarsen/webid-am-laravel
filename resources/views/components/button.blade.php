@@ -12,16 +12,18 @@
             : (['hy' => 'Մուտք webid-ով', 'ru' => 'Войти через webid'][app()->getLocale()] ?? 'Sign in with webid'))
         : $slot;
     $light = $theme === 'light';
-    $style = $plain ? null : 'display:inline-flex;align-items:center;gap:10px;padding:10px 18px 10px 12px;border-radius:12px;'
+    $style = $plain ? null : 'display:inline-flex;align-items:center;gap:10px;padding:10px 18px 10px 12px;border-radius:980px;'
         .'font:600 15px/1.2 system-ui,-apple-system,"Segoe UI",sans-serif;text-decoration:none;cursor:pointer;'
-        .($light ? 'background:#fff;color:#1f2340;border:1px solid #d9dcea;' : 'background:linear-gradient(135deg,#4f7cff,#7c5cff);color:#fff;border:0;');
+        .($light ? 'background:#fff;color:#1d1d1f;border:1px solid #d2d2d7;' : 'background:#0a66e8;color:#fff;border:0;');
     $ink = $light ? 'url(#webid-button-ink)' : '#fff';
 @endphp
 <a href="{{ route($connect ? 'webid.connect' : 'webid.login', array_filter(['return' => $return])) }}" {{ $attributes->merge(['class' => 'webid-button', 'style' => $style]) }}>
-    <svg width="24" height="18" viewBox="11 16 42 32" aria-hidden="true" focusable="false" style="flex:none">
-        @if ($light)<defs><linearGradient id="webid-button-ink" gradientUnits="userSpaceOnUse" x1="12" y1="17" x2="52" y2="47"><stop offset="0" stop-color="#4f7cff"/><stop offset="1" stop-color="#7c5cff"/></linearGradient></defs>@endif
-        <path d="M15 23 23.5 44 32 34 40.5 44 49 23" fill="none" stroke="{{ $ink }}" stroke-width="5.6" stroke-linecap="round" stroke-linejoin="round"/>
-        <circle cx="32" cy="21.4" r="4" fill="{{ $ink }}"/>
+    {{-- webid's mark: the W with a person; on the light button graphite and blue, on the blue one white. --}}
+    <svg width="30" height="15" viewBox="11.5 21.2 61.5 31.3" aria-hidden="true" focusable="false" style="flex:none">
+        <path d="M17.5 26 31.5 48.5M67.5 26 53.5 48.5" fill="none" stroke="{{ $light ? '#1d1d1f' : '#fff' }}" stroke-width="7.4" stroke-linecap="round"/>
+        <path d="M33.4 44.6 42.5 27 51.6 44.6Z" fill="{{ $light ? '#0a66e8' : '#fff' }}"/>
+        <path d="M31.5 48.5 42.5 26.5 53.5 48.5" fill="none" stroke="{{ $light ? '#0a66e8' : '#fff' }}" stroke-width="7.4" stroke-linecap="round" stroke-linejoin="round"/>
+        <circle cx="42.5" cy="33.4" r="3.5" fill="{{ $light ? '#fff' : '#0a66e8' }}"/><path d="M36.6 44.4c0-3.8 2.6-6.3 5.9-6.3s5.9 2.5 5.9 6.3Z" fill="{{ $light ? '#fff' : '#0a66e8' }}"/>
     </svg>
     <span>{{ $label }}</span>
 </a>

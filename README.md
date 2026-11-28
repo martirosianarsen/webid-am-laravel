@@ -66,6 +66,11 @@ An equal e-mail address never links accounts: your records cannot prove whose ad
 linking by it would let someone who opened an account with another person's address read that person's data once they
 sign in with webid.
 
+A linked user is found by the webid id (`sub`), never by the address. Each sign-in keeps the user's name up to date,
+and the e-mail address too: the person chooses on webid which of their confirmed addresses your site gets and may
+change it later, so a new confirmed address replaces the old one at their next sign-in (unless another user of yours
+has it). One webid account links to one user of yours, and one user to one webid account.
+
 Everything webid gave the site
 arrives in the `Webid\Laravel\Events\SignedIn` event as standard OpenID Connect claims (`$event->claims`: `email`,
 `email_verified`, `phone_number`, `preferred_username` (the webid ID), `address`, `locale`…, plus webid's `adult`), to

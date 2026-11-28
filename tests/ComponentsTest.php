@@ -17,12 +17,12 @@ class ComponentsTest extends TestCase
         $this->assertStringContainsString('href="http://localhost/webid/login?return=%2Fcheckout"', $html);
         $this->assertStringContainsString('<svg', $html);
         $this->assertStringContainsString('Մուտք webid-ով', $html);
-        $this->assertStringContainsString('linear-gradient', $html, 'styled without a stylesheet');
+        $this->assertStringContainsString('background:#0a66e8', $html, 'styled without a stylesheet');
 
         app()->setLocale('en');
         $this->assertStringContainsString('Sign in with webid', Blade::render('<x-webid::button />'));
         $this->assertStringContainsString('Join', Blade::render('<x-webid::button>Join</x-webid::button>'));
-        $this->assertStringNotContainsString('linear-gradient', Blade::render('<x-webid::button plain class="btn" />'));
+        $this->assertStringNotContainsString('background:#0a66e8', Blade::render('<x-webid::button plain class="btn" />'));
     }
 
     #[Test]

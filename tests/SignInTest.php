@@ -186,6 +186,29 @@ class SignInTest extends TestCase
         $this->assertSame('Test U.', $user->refresh()->name);
     }
 
+    #[Test]
+    public function the_address_the_person_gives_the_site_on_webid_reaches_the_site_at_the_next_sign_in(): void
+    {
+        $this->signIn(['sub' => 'sub-1', 'name' => 'Test User', 'email' => 'user@example.com', 'email_verified' => true]);
+        $user = User::sole();
+        $again = function (array $claims): void {
+            auth()->logout();
+            $this->claims = [];
+            $this->signIn(['sub' => 'sub-1', 'name' => 'Test User', ...$claims]);
+        };
+
+        // Another confirmed address chosen on webid: the same user, its address follows.
+        $again(['email' => 'work@example.com', 'email_verified' => true]);
+        $this->assertSame([1, 'work@example.com'], [User::count(), $user->refresh()->email]);
+
+        // Not confirmed, or another user's here: the address stays as it was.
+        $again(['email' => 'unconfirmed@example.com', 'email_verified' => false]);
+        $this->assertSame('work@example.com', $user->refresh()->email);
+        User::create(['name' => 'Someone else', 'email' => 'taken@example.com', 'password' => 'x']);
+        $again(['email' => 'taken@example.com', 'email_verified' => true]);
+        $this->assertSame('work@example.com', $user->refresh()->email);
+    }
+
     /**
      * Starts linking the signed-in account and comes back from webid with a code.
      *
