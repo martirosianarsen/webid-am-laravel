@@ -8,6 +8,11 @@ return [
     'key' => env('WEBID_KEY'),
 
     /*
+     * webid's address, for connecting the site in one click before it has a key (Webid\Laravel\SiteConnect).
+     */
+    'url' => env('WEBID_URL', 'https://webid.am'),
+
+    /*
      * webid's API (the places list). Defaults to webid's address with "api." in front (https://api.webid.am).
      */
     'api_url' => env('WEBID_API_URL'),

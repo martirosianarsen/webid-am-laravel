@@ -28,6 +28,11 @@ class WebidServiceProvider extends ServiceProvider
             config('webid.api_url'),
             config('webid.chat_url'),
         ));
+        $this->app->singleton(SiteConnect::class, fn ($app): SiteConnect => new SiteConnect(
+            $app->make(Http::class),
+            $app->make(Cache::class),
+            (string) (config('webid.url') ?: 'https://webid.am'),
+        ));
     }
 
     public function boot(): void

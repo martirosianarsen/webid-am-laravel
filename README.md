@@ -46,6 +46,26 @@ That is all. The package adds:
 | `GET /webid/token` | the token for the chat widget on the page (`data-token-url="/webid/token"`): a short-lived chat token that opens the chat and nothing else; the visitor's access token stays on the server |
 | `POST /webid/logout` | signs out here and on webid |
 | `POST /webid/backchannel-logout` | webid's own call: signs a person out here when they press “Sign out of every site” in their webid account, or disconnect the site |
+| `GET /webid/connected` | back from webid after connecting the site in one click (below) |
+| `GET /.well-known/webid-connect/{state}` | webid's own call while the site connects in one click: proves the domain |
+
+### Connecting in one click
+
+Instead of copying the key, the site's administrator can press a button in the site's own admin. Tell the package how
+the site keeps the key (encrypted, in its settings), and send the administrator to webid:
+
+```php
+// A service provider:
+SiteConnect::keepKeyUsing(fn (string $key) => Settings::put('webid_key', $key));
+
+// The admin's "Connect to webid" button (only for the site's administrators):
+return redirect()->away(app(SiteConnect::class)->url(session()->driver(), route('admin.webid')));
+```
+
+On webid they choose the business (or register one) and confirm. webid proves the domain by asking the site, turns
+sign-in on with the site's `/webid/callback`, and sends them back; the package trades the one-time code for the key,
+server to server, and keeps it. The admin page then has `session('webid_site_connect')`: `connected`, or what went
+wrong. `WEBID_URL` is webid's address (`https://webid.am` by default).
 
 ## Users
 
